@@ -6,17 +6,20 @@ st.set_page_config(
     layout="centered"
 )
 
-# ---------- BACKGROUND MUSIC ----------
+# ---------- BACKGROUND MUSIC (YouTube Autoplay & Loop) ----------
 st.markdown(
     """
-    <iframe width="0" height="0"
-    src="https://www.youtube.com/embed/2Vv-BfVoq4g?autoplay=1&loop=1&playlist=2Vv-BfVoq4g"
-    frameborder="0"
-    allow="autoplay">
-    </iframe>
+    <iframe
+        width="0"
+        height="0"
+        src="https://www.youtube.com/embed/2Vv-BfVoq4g?autoplay=1&loop=1&playlist=2Vv-BfVoq4g&mute=0"
+        frameborder="0"
+        allow="autoplay"
+    ></iframe>
     """,
     unsafe_allow_html=True
 )
+# --------------------------------------------------------------
 
 # Session state
 st.session_state.setdefault("accepted", False)
@@ -29,12 +32,12 @@ TOTAL_BITES = 6
 st.markdown("""
 <style>
 
-/* Background */
+/* Pink romantic background */
 .stApp {
     background: linear-gradient(180deg, #ffd6e8, #ffeaf3);
 }
 
-/* Text styles */
+/* Text */
 .title {
     text-align: center;
     font-size: 34px;
@@ -65,17 +68,15 @@ st.markdown("""
     align-items: center;
     justify-content: center;
 }
-
-/* Foil shine */
 .wrapper::before {
     content: "";
     position: absolute;
     inset: 0;
     background: linear-gradient(
         120deg,
-        rgba(255,255,255,0.15),
-        rgba(255,255,255,0.02),
-        rgba(255,255,255,0.15)
+        rgba(255,255,255,0.18),
+        rgba(255,255,255,0.03),
+        rgba(255,255,255,0.18)
     );
     border-radius: 18px;
 }
@@ -83,13 +84,13 @@ st.markdown("""
 /* Brand band */
 .band {
     background: #f6c1d3;
-    padding: 14px 20px;
+    padding: 14px 22px;
     border-radius: 12px;
     font-size: 22px;
     font-weight: bold;
     color: #6b1e3b;
     text-align: center;
-    box-shadow: inset 0 0 8px rgba(0,0,0,0.15);
+    box-shadow: inset 0 0 8px rgba(0,0,0,0.2);
 }
 
 /* Chocolate bar */
@@ -102,14 +103,13 @@ st.markdown("""
     border-radius: 14px;
     box-shadow: inset 0 0 12px rgba(0,0,0,0.6);
 }
-
 .block {
     width: 70px;
     height: 55px;
     background: linear-gradient(145deg, #6b3a1e, #4b250f);
     border-radius: 8px;
     box-shadow: inset 2px 2px 4px rgba(255,255,255,0.15),
-                inset -2px -2px 4px rgba(0,0,0,0.4);
+                inset -2px -2px 4px rgba(0,0,0,0.45);
 }
 
 </style>
