@@ -1,4 +1,3 @@
-
 import streamlit as st
 
 # Page setup
@@ -7,14 +6,14 @@ st.set_page_config(
     layout="centered"
 )
 
-# Initialize session state
+# Initialize session state safely
 st.session_state.setdefault("accepted", False)
 st.session_state.setdefault("unwrapped", False)
 st.session_state.setdefault("bites", 0)
 
-TOTAL_BITES = 6  # number of chocolate blocks
+TOTAL_BITES = 6
 
-# CSS for chocolate graphics
+# CSS for graphics
 st.markdown("""
 <style>
 .title {
@@ -29,30 +28,37 @@ st.markdown("""
     font-size: 22px;
     margin-bottom: 15px;
 }
-.choco-wrapper {
+.center {
     display: flex;
     justify-content: center;
-    margin: 20px 0;
+}
+.wrapper {
+    width: 260px;
+    height: 150px;
+    background: linear-gradient(135deg, #d4af7a, #b48b5a);
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 6px 12px rgba(0,0,0,0.25);
+    font-size: 22px;
+    font-weight: bold;
+    color: #4b250f;
+    text-align: center;
 }
 .chocolate {
     display: grid;
-    grid-template-columns: repeat(3, 60px);
-    gap: 6px;
+    grid-template-columns: repeat(3, 65px);
+    gap: 8px;
     padding: 15px;
     background: #3b1f0e;
-    border-radius: 10px;
+    border-radius: 12px;
 }
 .block {
-    width: 60px;
-    height: 50px;
+    width: 65px;
+    height: 55px;
     background: linear-gradient(145deg, #6b3a1e, #4b250f);
     border-radius: 6px;
-}
-.wrapper {
-    width: 220px;
-    height: 140px;
-    background: linear-gradient(135deg, #c49a6c, #a67c52);
-    border-radius: 12px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -65,7 +71,6 @@ if not st.session_state.accepted:
     st.markdown("<div class='text'>Will you accept my chocolate?</div>", unsafe_allow_html=True)
 
     col1, col2 = st.columns(2)
-
     with col1:
         if st.button("Yes 🍫"):
             st.session_state.accepted = True
@@ -73,20 +78,30 @@ if not st.session_state.accepted:
 
     with col2:
         if st.button("No 🙈"):
-            # Sneaky logic 😏
+            # Sneaky 😏
             st.session_state.accepted = True
             st.rerun()
 
-# STEP 2 — Wrapped chocolate
+# STEP 2 — Branded wrapper
 elif not st.session_state.unwrapped:
     st.markdown("<div class='text'>Chocolate accepted 💝</div>", unsafe_allow_html=True)
-    st.markdown("<div class='choco-wrapper'><div class='wrapper'></div></div>", unsafe_allow_html=True)
+
+    st.markdown(
+        """
+        <div class='center'>
+            <div class='wrapper'>
+                🍫 Meri Khushki Chocolate 🍫
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
     if st.button("🎁 Unwrap Chocolate"):
         st.session_state.unwrapped = True
         st.rerun()
 
-# STEP 3 — Eating chocolate (one bite at a time)
+# STEP 3 — Eat chocolate one block at a time
 else:
     remaining = TOTAL_BITES - st.session_state.bites
 
@@ -97,7 +112,7 @@ else:
 
         st.markdown(
             f"""
-            <div class='choco-wrapper'>
+            <div class='center'>
                 <div class='chocolate'>
                     {blocks_html}
                 </div>
