@@ -6,7 +6,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# ---------- BACKGROUND MUSIC (YouTube Embed) ----------
+# ---------- BACKGROUND MUSIC ----------
 st.markdown(
     """
     <iframe width="0" height="0"
@@ -17,7 +17,6 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-# ----------------------------------------------------
 
 # Session state
 st.session_state.setdefault("accepted", False)
@@ -26,60 +25,100 @@ st.session_state.setdefault("bites", 0)
 
 TOTAL_BITES = 6
 
-# CSS
+# ---------- CSS ----------
 st.markdown("""
 <style>
+
+/* Background */
+.stApp {
+    background: linear-gradient(180deg, #ffd6e8, #ffeaf3);
+}
+
+/* Text styles */
 .title {
     text-align: center;
-    font-size: 32px;
+    font-size: 34px;
     font-weight: bold;
-    color: #5a2e0f;
+    color: #7a1c3d;
     margin-bottom: 20px;
 }
 .text {
     text-align: center;
     font-size: 22px;
+    color: #5c1a33;
     margin-bottom: 15px;
 }
 .center {
     display: flex;
     justify-content: center;
 }
+
+/* Chocolate wrapper */
 .wrapper {
-    width: 280px;
-    height: 150px;
-    background: linear-gradient(135deg, #e6c08a, #b48b5a);
-    border-radius: 16px;
+    width: 300px;
+    height: 160px;
+    background: linear-gradient(135deg, #8b4a2f, #5a2e1a);
+    border-radius: 18px;
+    box-shadow: 0 10px 22px rgba(0,0,0,0.35);
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 8px 16px rgba(0,0,0,0.25);
+}
+
+/* Foil shine */
+.wrapper::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        120deg,
+        rgba(255,255,255,0.15),
+        rgba(255,255,255,0.02),
+        rgba(255,255,255,0.15)
+    );
+    border-radius: 18px;
+}
+
+/* Brand band */
+.band {
+    background: #f6c1d3;
+    padding: 14px 20px;
+    border-radius: 12px;
     font-size: 22px;
     font-weight: bold;
-    color: #4b250f;
+    color: #6b1e3b;
     text-align: center;
+    box-shadow: inset 0 0 8px rgba(0,0,0,0.15);
 }
+
+/* Chocolate bar */
 .chocolate {
     display: grid;
-    grid-template-columns: repeat(3, 65px);
-    gap: 8px;
-    padding: 15px;
+    grid-template-columns: repeat(3, 70px);
+    gap: 10px;
+    padding: 18px;
     background: #3b1f0e;
-    border-radius: 12px;
+    border-radius: 14px;
+    box-shadow: inset 0 0 12px rgba(0,0,0,0.6);
 }
+
 .block {
-    width: 65px;
+    width: 70px;
     height: 55px;
     background: linear-gradient(145deg, #6b3a1e, #4b250f);
-    border-radius: 6px;
+    border-radius: 8px;
+    box-shadow: inset 2px 2px 4px rgba(255,255,255,0.15),
+                inset -2px -2px 4px rgba(0,0,0,0.4);
 }
+
 </style>
 """, unsafe_allow_html=True)
 
-# Title
+# ---------- TITLE ----------
 st.markdown("<div class='title'>🍫 Happy Chocolate Day 🍫</div>", unsafe_allow_html=True)
 
-# STEP 1 — Accept chocolate
+# ---------- STEP 1: Accept ----------
 if not st.session_state.accepted:
     st.markdown("<div class='text'>Will you accept my chocolate?</div>", unsafe_allow_html=True)
 
@@ -91,10 +130,10 @@ if not st.session_state.accepted:
 
     with col2:
         if st.button("No 🙈"):
-            st.session_state.accepted = True  # evil override 😏
+            st.session_state.accepted = True  # sneaky 😏
             st.rerun()
 
-# STEP 2 — Wrapper with name
+# ---------- STEP 2: Wrapper ----------
 elif not st.session_state.unwrapped:
     st.markdown("<div class='text'>Chocolate accepted 💝</div>", unsafe_allow_html=True)
 
@@ -102,7 +141,9 @@ elif not st.session_state.unwrapped:
         """
         <div class='center'>
             <div class='wrapper'>
-                🍫 Meri Khushki Chocolate 🍫
+                <div class='band'>
+                    🍫 Meri Khushki Chocolate 🍫
+                </div>
             </div>
         </div>
         """,
@@ -113,12 +154,12 @@ elif not st.session_state.unwrapped:
         st.session_state.unwrapped = True
         st.rerun()
 
-# STEP 3 — Eat chocolate
+# ---------- STEP 3: Eat ----------
 else:
     remaining = TOTAL_BITES - st.session_state.bites
 
     if remaining > 0:
-        st.markdown("<div class='text'>Take a bite 😋</div>", unsafe_allow_html=True)
+        st.markdown("<div class='text'>Take one bite 😋</div>", unsafe_allow_html=True)
 
         blocks_html = "".join("<div class='block'></div>" for _ in range(remaining))
 
