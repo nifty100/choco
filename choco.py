@@ -6,14 +6,27 @@ st.set_page_config(
     layout="centered"
 )
 
-# Initialize session state safely
+# ---------- BACKGROUND MUSIC (YouTube Embed) ----------
+st.markdown(
+    """
+    <iframe width="0" height="0"
+    src="https://www.youtube.com/embed/2Vv-BfVoq4g?autoplay=1&loop=1&playlist=2Vv-BfVoq4g"
+    frameborder="0"
+    allow="autoplay">
+    </iframe>
+    """,
+    unsafe_allow_html=True
+)
+# ----------------------------------------------------
+
+# Session state
 st.session_state.setdefault("accepted", False)
 st.session_state.setdefault("unwrapped", False)
 st.session_state.setdefault("bites", 0)
 
 TOTAL_BITES = 6
 
-# CSS for graphics
+# CSS
 st.markdown("""
 <style>
 .title {
@@ -33,14 +46,14 @@ st.markdown("""
     justify-content: center;
 }
 .wrapper {
-    width: 260px;
+    width: 280px;
     height: 150px;
-    background: linear-gradient(135deg, #d4af7a, #b48b5a);
-    border-radius: 14px;
+    background: linear-gradient(135deg, #e6c08a, #b48b5a);
+    border-radius: 16px;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 6px 12px rgba(0,0,0,0.25);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.25);
     font-size: 22px;
     font-weight: bold;
     color: #4b250f;
@@ -78,11 +91,10 @@ if not st.session_state.accepted:
 
     with col2:
         if st.button("No 🙈"):
-            # Sneaky 😏
-            st.session_state.accepted = True
+            st.session_state.accepted = True  # evil override 😏
             st.rerun()
 
-# STEP 2 — Branded wrapper
+# STEP 2 — Wrapper with name
 elif not st.session_state.unwrapped:
     st.markdown("<div class='text'>Chocolate accepted 💝</div>", unsafe_allow_html=True)
 
@@ -101,7 +113,7 @@ elif not st.session_state.unwrapped:
         st.session_state.unwrapped = True
         st.rerun()
 
-# STEP 3 — Eat chocolate one block at a time
+# STEP 3 — Eat chocolate
 else:
     remaining = TOTAL_BITES - st.session_state.bites
 
