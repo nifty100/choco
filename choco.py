@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import requests
+import yfinance as yf
 from datetime import datetime
 
 # ---------------------------------------------------
@@ -8,37 +8,23 @@ from datetime import datetime
 # ---------------------------------------------------
 
 st.set_page_config(
-    page_title="Historical Option Data Downloader",
+    page_title="Yahoo Finance Option Downloader",
     layout="wide"
 )
 
-st.title("Historical Option Data Downloader")
+st.title("Yahoo Finance Option Data Downloader")
 
 st.write(
-    "Download historical option data using Upstox API"
+    "Download historical option data using Yahoo Finance"
 )
 
 # ---------------------------------------------------
 # USER INPUTS
 # ---------------------------------------------------
 
-api_key = st.text_input(
-    "Upstox API Key"
-)
-
-api_secret = st.text_input(
-    "Upstox API Secret",
-    type="password"
-)
-
-access_token = st.text_input(
-    "Upstox Access Token",
-    type="password"
-)
-
 symbol = st.text_input(
-    "Symbol",
-    value="NIFTY"
+    "Enter Yahoo Finance Symbol",
+    value="^NSEI"
 ).upper()
 
 expiry = st.text_input(
@@ -69,236 +55,63 @@ to_date = st.date_input(
 )
 
 # ---------------------------------------------------
-# SHOW LOGIN URL
-# ---------------------------------------------------
-
-if api_key != "":
-
-    login_url = (
-        "https://api-v2.upstox.com/login/"
-        "authorization/dialog?"
-        "response_type=code"
-        f"&client_id={api_key}"
-        "&redirect_uri=http://localhost"
-    )
-
-    st.markdown("### Step 1: Login URL")
-
-    st.code(login_url)
-
-    st.info(
-        "Open this URL in browser, login and "
-        "copy the code from redirected URL."
-    )
-
-# ---------------------------------------------------
-# AUTH CODE INPUT
-# ---------------------------------------------------
-
-auth_code = st.text_input(
-    "Paste Authorization Code Here"
-)
-
-# ---------------------------------------------------
-# GENERATE ACCESS TOKEN
-# ---------------------------------------------------
-
-if st.button("Generate Access Token"):
-
-    try:
-
-        token_url = (
-            "https://api-v2.upstox.com/login/"
-            "authorization/token"
-        )
-
-        headers = {
-            "accept": "application/json",
-            "Api-Version": "2.0",
-            "Content-Type":
-            "application/x-www-form-urlencoded"
-        }
-
-        payload = {
-            "code": auth_code,
-            "client_id": api_key,
-            "client_secret": api_secret,
-            "redirect_uri": "http://localhost",
-            "grant_type": "authorization_code"
-        }
-
-        response = requests.post(
-            token_url,
-            headers=headers,
-            data=payload
-        )
-
-        data = response.json()
-
-        generated_token = data.get(
-            "access_token"
-        )
-
-        if generated_token:
-
-            st.success(
-                "Access Token Generated Successfully"
-            )
-
-            st.code(generated_token)
-
-        else:
-
-            st.error(data)
-
-    except Exception as e:
-
-        st.error(str(e))
-
-# ---------------------------------------------------
-# FETCH OPTION DATA FUNCTION
+# FETCH OPTION DATA
 # ---------------------------------------------------
 
 def fetch_option_data():
 
-    headers = {
-        "Accept": "application/json",
-        "Authorization":
-        f"Bearer {access_token}"
-    }
+    ticker = yf.Ticker(symbol)
 
     # ---------------------------------------------
-    # FETCH OPTION CONTRACTS
+    # GET OPTION CHAIN
     # ---------------------------------------------
 
-    contract_url = (
-        "https://api.upstox.com/v2/"
-        "option/contract"
-    )
+    option_chain = ticker.option_chain(expiry)
 
-    params = {
-        "instrument_key":
-        f"NSE_INDEX|{symbol}",
-        "expiry_date": expiry
-    }
+    if option_type == "CE":
+        df = option_chain.calls
+    else:
+        df = option_chain.puts
 
-    response = requests.get(
-        contract_url,
-        headers=headers,
-        params=params
-    )
+    # ---------------------------------------------
+    # FILTER STRIKE PRICE
+    # ---------------------------------------------
 
-    if response.status_code != 200:
-
-        raise Exception(
-            f"Contract API Error: "
-            f"{response.status_code}"
-        )
-
-    contract_data = response.json()
-
-    contracts = contract_data.get(
-        "data",
-        []
-    )
-
-    if len(contracts) == 0:
-
-        raise Exception(
-            "No option contracts found."
-        )
-
-    matched_contract = None
-
-    for contract in contracts:
-
-        strike_match = (
-            float(contract.get(
-                "strike_price",
-                0
-            )) == float(strike_price)
-        )
-
-        option_match = (
-            contract.get(
-                "option_type",
-                ""
-            ).upper() == option_type
-        )
-
-        if strike_match and option_match:
-
-            matched_contract = contract
-            break
-
-    if matched_contract is None:
-
-        raise Exception(
-            "Matching option contract not found."
-        )
-
-    instrument_key = matched_contract[
-        "instrument_key"
+    df = df[
+        df["strike"] == strike_price
     ]
 
-    # ---------------------------------------------
-    # FETCH HISTORICAL DATA
-    # ---------------------------------------------
-
-    historical_url = (
-        "https://api.upstox.com/v2/"
-        "historical-candle/"
-        f"{instrument_key}/day/"
-        f"{to_date.strftime('%Y-%m-%d')}/"
-        f"{from_date.strftime('%Y-%m-%d')}"
-    )
-
-    historical_response = requests.get(
-        historical_url,
-        headers=headers
-    )
-
-    if historical_response.status_code != 200:
-
+    if df.empty:
         raise Exception(
-            f"Historical API Error: "
-            f"{historical_response.status_code}"
-        )
-
-    historical_data = (
-        historical_response.json()
-    )
-
-    candles = historical_data.get(
-        "data",
-        {}
-    ).get(
-        "candles",
-        []
-    )
-
-    if len(candles) == 0:
-
-        raise Exception(
-            "No historical candle data found."
+            "No option data found for selected strike."
         )
 
     # ---------------------------------------------
-    # DATAFRAME
+    # DATE FILTER
     # ---------------------------------------------
 
-    df = pd.DataFrame(
-        candles,
-        columns=[
-            "Date",
-            "Open",
-            "High",
-            "Low",
-            "Close",
-            "Volume",
-            "OpenInterest"
+    if "lastTradeDate" in df.columns:
+
+        df["lastTradeDate"] = pd.to_datetime(
+            df["lastTradeDate"]
+        )
+
+        df = df[
+            (
+                df["lastTradeDate"]
+                >= pd.to_datetime(from_date)
+            )
+            &
+            (
+                df["lastTradeDate"]
+                <= pd.to_datetime(to_date)
+            )
         ]
-    )
+
+    if df.empty:
+        raise Exception(
+            "No data found within selected dates."
+        )
 
     return df
 
@@ -306,57 +119,49 @@ def fetch_option_data():
 # FETCH BUTTON
 # ---------------------------------------------------
 
-if st.button("Fetch Historical Data"):
+if st.button("Fetch Option Data"):
 
     try:
 
-        if access_token == "":
+        with st.spinner(
+            "Fetching option data..."
+        ):
 
-            st.error(
-                "Please enter Access Token"
-            )
+            df = fetch_option_data()
 
-        else:
+        st.success(
+            f"{len(df)} rows fetched successfully."
+        )
 
-            with st.spinner(
-                "Fetching historical data..."
-            ):
+        st.dataframe(df)
 
-                df = fetch_option_data()
+        # -----------------------------------------
+        # FILE NAME
+        # -----------------------------------------
 
-            st.success(
-                f"{len(df)} rows fetched."
-            )
+        filename = (
+            f"{symbol}_"
+            f"{strike_price}_"
+            f"{option_type}_"
+            f"{from_date.strftime('%d-%b-%Y')}"
+            f"_TO_"
+            f"{to_date.strftime('%d-%b-%Y')}.csv"
+        )
 
-            st.dataframe(df)
+        # -----------------------------------------
+        # DOWNLOAD CSV
+        # -----------------------------------------
 
-            # -----------------------------------------
-            # FILE NAME
-            # -----------------------------------------
+        csv = df.to_csv(
+            index=False
+        ).encode("utf-8")
 
-            filename = (
-                f"{symbol}_"
-                f"{strike_price}_"
-                f"{option_type}_"
-                f"{from_date.strftime('%d-%b-%Y')}"
-                f"_TO_"
-                f"{to_date.strftime('%d-%b-%Y')}.csv"
-            )
-
-            # -----------------------------------------
-            # DOWNLOAD BUTTON
-            # -----------------------------------------
-
-            csv = df.to_csv(
-                index=False
-            ).encode("utf-8")
-
-            st.download_button(
-                label="Download CSV",
-                data=csv,
-                file_name=filename,
-                mime="text/csv"
-            )
+        st.download_button(
+            label="Download CSV",
+            data=csv,
+            file_name=filename,
+            mime="text/csv"
+        )
 
     except Exception as e:
 
