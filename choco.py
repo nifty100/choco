@@ -4,27 +4,35 @@ import requests
 from datetime import datetime
 
 # ---------------------------------------------------
-# STREAMLIT PAGE CONFIG
+# PAGE CONFIG
 # ---------------------------------------------------
 
 st.set_page_config(
-    page_title="Option Data Downloader",
+    page_title="Historical Option Data Downloader",
     layout="wide"
 )
 
 st.title("Historical Option Data Downloader")
 
 st.write(
-    "Fetch historical option data using Upstox API "
-    "and download filtered CSV."
+    "Download historical option data using Upstox API"
 )
 
 # ---------------------------------------------------
 # USER INPUTS
 # ---------------------------------------------------
 
+api_key = st.text_input(
+    "Upstox API Key"
+)
+
+api_secret = st.text_input(
+    "Upstox API Secret",
+    type="password"
+)
+
 access_token = st.text_input(
-    "Enter Upstox Access Token",
+    "Upstox Access Token",
     type="password"
 )
 
@@ -34,7 +42,7 @@ symbol = st.text_input(
 ).upper()
 
 expiry = st.text_input(
-    "Expiry Date (Example: 2022-12-29)",
+    "Expiry Date (YYYY-MM-DD)",
     value="2022-12-29"
 )
 
@@ -61,70 +69,170 @@ to_date = st.date_input(
 )
 
 # ---------------------------------------------------
-# FETCH FUNCTION
+# SHOW LOGIN URL
+# ---------------------------------------------------
+
+if api_key != "":
+
+    login_url = (
+        "https://api-v2.upstox.com/login/"
+        "authorization/dialog?"
+        "response_type=code"
+        f"&client_id={api_key}"
+        "&redirect_uri=http://localhost"
+    )
+
+    st.markdown("### Step 1: Login URL")
+
+    st.code(login_url)
+
+    st.info(
+        "Open this URL in browser, login and "
+        "copy the code from redirected URL."
+    )
+
+# ---------------------------------------------------
+# AUTH CODE INPUT
+# ---------------------------------------------------
+
+auth_code = st.text_input(
+    "Paste Authorization Code Here"
+)
+
+# ---------------------------------------------------
+# GENERATE ACCESS TOKEN
+# ---------------------------------------------------
+
+if st.button("Generate Access Token"):
+
+    try:
+
+        token_url = (
+            "https://api-v2.upstox.com/login/"
+            "authorization/token"
+        )
+
+        headers = {
+            "accept": "application/json",
+            "Api-Version": "2.0",
+            "Content-Type":
+            "application/x-www-form-urlencoded"
+        }
+
+        payload = {
+            "code": auth_code,
+            "client_id": api_key,
+            "client_secret": api_secret,
+            "redirect_uri": "http://localhost",
+            "grant_type": "authorization_code"
+        }
+
+        response = requests.post(
+            token_url,
+            headers=headers,
+            data=payload
+        )
+
+        data = response.json()
+
+        generated_token = data.get(
+            "access_token"
+        )
+
+        if generated_token:
+
+            st.success(
+                "Access Token Generated Successfully"
+            )
+
+            st.code(generated_token)
+
+        else:
+
+            st.error(data)
+
+    except Exception as e:
+
+        st.error(str(e))
+
+# ---------------------------------------------------
+# FETCH OPTION DATA FUNCTION
 # ---------------------------------------------------
 
 def fetch_option_data():
 
     headers = {
         "Accept": "application/json",
-        "Authorization": f"Bearer {access_token}"
+        "Authorization":
+        f"Bearer {access_token}"
     }
 
     # ---------------------------------------------
-    # STEP 1: SEARCH INSTRUMENT
+    # FETCH OPTION CONTRACTS
     # ---------------------------------------------
 
-    instrument_url = (
-        "https://api.upstox.com/v2/option/contract"
+    contract_url = (
+        "https://api.upstox.com/v2/"
+        "option/contract"
     )
 
     params = {
-        "instrument_key": f"NSE_INDEX|{symbol}",
+        "instrument_key":
+        f"NSE_INDEX|{symbol}",
         "expiry_date": expiry
     }
 
     response = requests.get(
-        instrument_url,
+        contract_url,
         headers=headers,
         params=params
     )
 
     if response.status_code != 200:
+
         raise Exception(
-            f"Instrument Fetch Error: "
+            f"Contract API Error: "
             f"{response.status_code}"
         )
 
-    instrument_data = response.json()
+    contract_data = response.json()
 
-    if "data" not in instrument_data:
+    contracts = contract_data.get(
+        "data",
+        []
+    )
+
+    if len(contracts) == 0:
+
         raise Exception(
-            "No instrument data found."
+            "No option contracts found."
         )
-
-    contracts = instrument_data["data"]
 
     matched_contract = None
 
-    for item in contracts:
+    for contract in contracts:
 
         strike_match = (
-            float(item.get("strike_price", 0))
-            == float(strike_price)
+            float(contract.get(
+                "strike_price",
+                0
+            )) == float(strike_price)
         )
 
         option_match = (
-            item.get("option_type", "")
-            .upper()
-            == option_type
+            contract.get(
+                "option_type",
+                ""
+            ).upper() == option_type
         )
 
         if strike_match and option_match:
-            matched_contract = item
+
+            matched_contract = contract
             break
 
     if matched_contract is None:
+
         raise Exception(
             "Matching option contract not found."
         )
@@ -134,7 +242,7 @@ def fetch_option_data():
     ]
 
     # ---------------------------------------------
-    # STEP 2: FETCH HISTORICAL DATA
+    # FETCH HISTORICAL DATA
     # ---------------------------------------------
 
     historical_url = (
@@ -151,30 +259,32 @@ def fetch_option_data():
     )
 
     if historical_response.status_code != 200:
+
         raise Exception(
-            f"Historical Data Error: "
+            f"Historical API Error: "
             f"{historical_response.status_code}"
         )
 
-    historical_data = historical_response.json()
+    historical_data = (
+        historical_response.json()
+    )
 
-    if "data" not in historical_data:
-        raise Exception(
-            "No historical data found."
-        )
-
-    candles = historical_data["data"].get(
+    candles = historical_data.get(
+        "data",
+        {}
+    ).get(
         "candles",
         []
     )
 
     if len(candles) == 0:
+
         raise Exception(
-            "No candle data available."
+            "No historical candle data found."
         )
 
     # ---------------------------------------------
-    # CREATE DATAFRAME
+    # DATAFRAME
     # ---------------------------------------------
 
     df = pd.DataFrame(
@@ -186,23 +296,24 @@ def fetch_option_data():
             "Low",
             "Close",
             "Volume",
-            "OI"
+            "OpenInterest"
         ]
     )
 
     return df
 
 # ---------------------------------------------------
-# BUTTON ACTION
+# FETCH BUTTON
 # ---------------------------------------------------
 
-if st.button("Fetch Data"):
+if st.button("Fetch Historical Data"):
 
     try:
 
-        if access_token.strip() == "":
+        if access_token == "":
+
             st.error(
-                "Please enter Upstox Access Token."
+                "Please enter Access Token"
             )
 
         else:
@@ -214,7 +325,7 @@ if st.button("Fetch Data"):
                 df = fetch_option_data()
 
             st.success(
-                f"{len(df)} rows fetched successfully."
+                f"{len(df)} rows fetched."
             )
 
             st.dataframe(df)
@@ -233,7 +344,7 @@ if st.button("Fetch Data"):
             )
 
             # -----------------------------------------
-            # DOWNLOAD CSV
+            # DOWNLOAD BUTTON
             # -----------------------------------------
 
             csv = df.to_csv(
