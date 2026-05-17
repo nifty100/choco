@@ -16,11 +16,6 @@ st.set_page_config(
 
 st.title("NSE Bhavcopy Option Data Downloader")
 
-st.write(
-    "Download historical NSE option data "
-    "using NSE FO Bhavcopy archives."
-)
-
 # ---------------------------------------------------
 # USER INPUTS
 # ---------------------------------------------------
@@ -53,12 +48,12 @@ to_date = st.date_input(
 )
 
 # ---------------------------------------------------
-# NSE BHAVCOPY FETCH FUNCTION
+# FETCH FUNCTION
 # ---------------------------------------------------
 
 def fetch_bhavcopy_data():
 
-    final_df = pd.DataFrame()
+    final_df = []
 
     current_date = from_date
 
@@ -73,17 +68,17 @@ def fetch_bhavcopy_data():
         month = current_date.strftime("%b").upper()
         year = current_date.strftime("%Y")
 
-        # Example:
+        # Example URL:
         # https://archives.nseindia.com/content/historical/DERIVATIVES/2022/DEC/fo01DEC2022bhav.csv.zip
 
-        file_name = (
+        zip_filename = (
             f"fo{day}{month}{year}bhav.csv.zip"
         )
 
         url = (
             "https://archives.nseindia.com/content/"
             f"historical/DERIVATIVES/"
-            f"{year}/{month}/{file_name}"
+            f"{year}/{month}/{zip_filename}"
         )
 
         try:
@@ -97,62 +92,76 @@ def fetch_bhavcopy_data():
                 current_date += timedelta(days=1)
                 continue
 
-            zip_data = zipfile.ZipFile(
+            # -----------------------------------------
+            # READ ZIP
+            # -----------------------------------------
+
+            zip_file = zipfile.ZipFile(
                 io.BytesIO(response.content)
             )
 
-            csv_name = zip_data.namelist()[0]
+            csv_file = zip_file.namelist()[0]
 
             df = pd.read_csv(
-                zip_data.open(csv_name)
+                zip_file.open(csv_file)
             )
 
             # -----------------------------------------
-            # FILTERS
+            # STRICT FILTERS
             # -----------------------------------------
 
-            if "SYMBOL" in df.columns:
-
-                df = df[
+            filtered_df = df[
+                (
                     df["SYMBOL"]
                     .astype(str)
-                    .str.upper() == symbol
-                ]
-
-            if "STRIKE_PR" in df.columns:
-
-                df = df[
+                    .str.upper()
+                    == symbol
+                )
+                &
+                (
                     df["STRIKE_PR"]
                     == strike_price
-                ]
-
-            if "OPTION_TYP" in df.columns:
-
-                df = df[
+                )
+                &
+                (
                     df["OPTION_TYP"]
                     .astype(str)
-                    .str.upper() == option_type
-                ]
-
-            # Only Options
-            if "INSTRUMENT" in df.columns:
-
-                df = df[
+                    .str.upper()
+                    == option_type
+                )
+                &
+                (
                     df["INSTRUMENT"]
                     .isin(["OPTIDX", "OPTSTK"])
-                ]
+                )
+            ]
 
-            final_df = pd.concat(
-                [final_df, df],
-                ignore_index=True
-            )
+            # -----------------------------------------
+            # ADD ONLY MATCHING ROWS
+            # -----------------------------------------
+
+            if not filtered_df.empty:
+
+                final_df.append(filtered_df)
 
         except:
             pass
 
         current_date += timedelta(days=1)
 
-    return final_df
+    # -----------------------------------------
+    # COMBINE DATA
+    # -----------------------------------------
+
+    if len(final_df) == 0:
+        return pd.DataFrame()
+
+    combined_df = pd.concat(
+        final_df,
+        ignore_index=True
+    )
+
+    return combined_df
 
 # ---------------------------------------------------
 # FETCH BUTTON
@@ -163,7 +172,7 @@ if st.button("Fetch Option Data"):
     try:
 
         with st.spinner(
-            "Downloading NSE Bhavcopy files..."
+            "Fetching filtered option data..."
         ):
 
             final_df = fetch_bhavcopy_data()
@@ -171,13 +180,13 @@ if st.button("Fetch Option Data"):
         if final_df.empty:
 
             st.warning(
-                "No matching option data found."
+                "No matching data found."
             )
 
         else:
 
             st.success(
-                f"{len(final_df)} rows fetched."
+                f"{len(final_df)} matching rows fetched."
             )
 
             st.dataframe(final_df)
@@ -196,7 +205,7 @@ if st.button("Fetch Option Data"):
             )
 
             # -----------------------------------------
-            # CSV DOWNLOAD
+            # DOWNLOAD CSV
             # -----------------------------------------
 
             csv = final_df.to_csv(
