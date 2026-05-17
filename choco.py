@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from nsepython import *
+from nsepythonserver import nsefetch
 
 # ---------------------------------
 # PAGE CONFIG
@@ -14,24 +14,29 @@ st.set_page_config(
 
 st.title("NSE Option CSV Downloader")
 
+st.write(
+    "Download historical NSE option data "
+    "filtered by Symbol, Strike Price and Option Type."
+)
+
 # ---------------------------------
 # USER INPUTS
 # ---------------------------------
 
 symbol = st.text_input(
-    "Symbol",
+    "Enter Symbol",
     value="NIFTY"
 ).upper()
 
 strike_price = st.number_input(
-    "Strike Price",
+    "Enter Strike Price",
     min_value=0,
     value=23000,
     step=50
 )
 
 option_type = st.selectbox(
-    "Option Type",
+    "Select Option Type",
     ["CE", "PE"]
 )
 
@@ -46,7 +51,7 @@ to_date = st.date_input(
 )
 
 # ---------------------------------
-# FETCH FUNCTION
+# FETCH DATA FUNCTION
 # ---------------------------------
 
 def fetch_option_data():
@@ -54,15 +59,16 @@ def fetch_option_data():
     from_str = from_date.strftime("%d-%m-%Y")
     to_str = to_date.strftime("%d-%m-%Y")
 
-    # NSE Historical Options Data
-    data = nsefetch(
-        f"https://www.nseindia.com/api/"
-        f"historical/foCPV?"
+    url = (
+        "https://www.nseindia.com/api/"
+        "historical/foCPV?"
         f"symbol={symbol}"
         f"&from={from_str}"
         f"&to={to_str}"
-        f"&instrumentType=OPTIDX"
+        "&instrumentType=OPTIDX"
     )
+
+    data = nsefetch(url)
 
     if "data" not in data:
         raise Exception("No data returned from NSE")
@@ -82,15 +88,21 @@ if st.button("Fetch Data"):
         df = fetch_option_data()
 
         # ---------------------------------
-        # FILTERS
+        # FILTER STRIKE PRICE
         # ---------------------------------
 
         if "strikePrice" in df.columns:
+
             df = df[
                 df["strikePrice"] == strike_price
             ]
 
+        # ---------------------------------
+        # FILTER OPTION TYPE
+        # ---------------------------------
+
         if "optionType" in df.columns:
+
             df = df[
                 df["optionType"]
                 .astype(str)
@@ -98,18 +110,22 @@ if st.button("Fetch Data"):
             ]
 
         # ---------------------------------
-        # EMPTY CHECK
+        # CHECK EMPTY DATA
         # ---------------------------------
 
-        if len(df) == 0:
-            st.warning("No matching data found.")
+        if df.empty:
+
+            st.warning(
+                "No matching data found."
+            )
+
         else:
 
             st.success(
                 f"{len(df)} rows fetched successfully."
             )
 
-            st.dataframe(df.head())
+            st.dataframe(df)
 
             # ---------------------------------
             # FILE NAME
@@ -125,7 +141,7 @@ if st.button("Fetch Data"):
             )
 
             # ---------------------------------
-            # DOWNLOAD
+            # CSV DOWNLOAD
             # ---------------------------------
 
             csv = df.to_csv(
@@ -140,4 +156,5 @@ if st.button("Fetch Data"):
             )
 
     except Exception as e:
+
         st.error(str(e))
