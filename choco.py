@@ -1,8 +1,7 @@
 import streamlit as st
 import pandas as pd
-import requests
 from datetime import datetime
-from io import BytesIO
+from nsepython import *
 
 # ---------------------------------
 # PAGE CONFIG
@@ -50,56 +49,27 @@ to_date = st.date_input(
 # FETCH FUNCTION
 # ---------------------------------
 
-def fetch_data():
+def fetch_option_data():
 
-    url = (
-        "https://www.nseindia.com/api/"
-        "historical/fo/derivatives"
+    from_str = from_date.strftime("%d-%m-%Y")
+    to_str = to_date.strftime("%d-%m-%Y")
+
+    # NSE Historical Options Data
+    data = nsefetch(
+        f"https://www.nseindia.com/api/"
+        f"historical/foCPV?"
+        f"symbol={symbol}"
+        f"&from={from_str}"
+        f"&to={to_str}"
+        f"&instrumentType=OPTIDX"
     )
-
-    params = {
-        "from": from_date.strftime("%d-%m-%Y"),
-        "to": to_date.strftime("%d-%m-%Y"),
-        "instrumentType": "OPTIDX",
-        "symbol": symbol
-    }
-
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0 Safari/537.36"
-        ),
-        "Accept": "application/json",
-        "Referer": "https://www.nseindia.com/",
-        "Origin": "https://www.nseindia.com"
-    }
-
-    response = requests.get(
-        url,
-        headers=headers,
-        params=params,
-        timeout=30
-    )
-
-    if response.status_code != 200:
-        raise Exception(
-            f"NSE API Error: {response.status_code}"
-        )
-
-    try:
-        data = response.json()
-    except:
-        raise Exception(
-            "NSE blocked request or returned invalid data."
-        )
 
     if "data" not in data:
-        raise Exception(
-            "No data found."
-        )
+        raise Exception("No data returned from NSE")
 
-    return pd.DataFrame(data["data"])
+    df = pd.DataFrame(data["data"])
+
+    return df
 
 # ---------------------------------
 # BUTTON
@@ -109,7 +79,7 @@ if st.button("Fetch Data"):
 
     try:
 
-        df = fetch_data()
+        df = fetch_option_data()
 
         # ---------------------------------
         # FILTERS
@@ -132,13 +102,11 @@ if st.button("Fetch Data"):
         # ---------------------------------
 
         if len(df) == 0:
-            st.warning(
-                "No matching data found."
-            )
+            st.warning("No matching data found.")
         else:
 
             st.success(
-                f"{len(df)} rows fetched."
+                f"{len(df)} rows fetched successfully."
             )
 
             st.dataframe(df.head())
@@ -147,19 +115,13 @@ if st.button("Fetch Data"):
             # FILE NAME
             # ---------------------------------
 
-            from_str = from_date.strftime(
-                "%d-%b-%Y"
-            )
-
-            to_str = to_date.strftime(
-                "%d-%b-%Y"
-            )
-
             filename = (
                 f"{symbol}_"
                 f"{strike_price}_"
                 f"{option_type}_"
-                f"{from_str}_TO_{to_str}.csv"
+                f"{from_date.strftime('%d-%b-%Y')}"
+                f"_TO_"
+                f"{to_date.strftime('%d-%b-%Y')}.csv"
             )
 
             # ---------------------------------
