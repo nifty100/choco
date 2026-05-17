@@ -5,7 +5,7 @@ from datetime import datetime
 from io import StringIO
 
 # ---------------------------------
-# NSE Option Data Downloader
+# PAGE CONFIG
 # ---------------------------------
 
 st.set_page_config(
@@ -15,13 +15,8 @@ st.set_page_config(
 
 st.title("NSE Option CSV Downloader")
 
-st.write(
-    "Download NSE option data filtered by "
-    "Symbol, Strike Price, Option Type and Date Range."
-)
-
 # ---------------------------------
-# User Inputs
+# USER INPUTS
 # ---------------------------------
 
 symbol = st.text_input(
@@ -52,35 +47,42 @@ to_date = st.date_input(
 )
 
 # ---------------------------------
-# Fetch NSE CSV Data
+# FETCH NSE DATA
 # ---------------------------------
 
-def fetch_nse_data():
-    """
-    Fetch CSV report from NSE
-    """
+def fetch_nse_csv():
 
-    url = "https://www.nseindia.com/report-detail/fo_eq_security"
+    # NSE historical derivatives CSV URL
+    url = (
+        "https://www.nseindia.com/api/"
+        "historical/foCPV?"
+        f"symbol={symbol}"
+        "&instrumentType=OPTIDX"
+        f"&from={from_date.strftime('%d-%m-%Y')}"
+        f"&to={to_date.strftime('%d-%m-%Y')}"
+    )
 
     session = requests.Session()
 
     headers = {
         "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Mozilla/5.0 "
+            "(Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 "
+            "(KHTML, like Gecko) "
             "Chrome/120.0 Safari/537.36"
         ),
         "Accept-Language": "en-US,en;q=0.9",
         "Referer": "https://www.nseindia.com/",
+        "Accept": "application/json"
     }
 
-    # Generate NSE cookies
+    # Get cookies first
     session.get(
         "https://www.nseindia.com",
         headers=headers
     )
 
-    # Actual request
     response = session.get(
         url,
         headers=headers
@@ -88,121 +90,53 @@ def fetch_nse_data():
 
     if response.status_code != 200:
         raise Exception(
-            f"Failed to fetch NSE data. "
-            f"Status code: {response.status_code}"
+            f"NSE API Error: {response.status_code}"
         )
 
-    return response.text
+    try:
+        json_data = response.json()
+    except Exception:
+        raise Exception(
+            "NSE did not return JSON data."
+        )
 
+    if "data" not in json_data:
+        raise Exception(
+            "No data field found in NSE response."
+        )
+
+    return pd.DataFrame(json_data["data"])
 
 # ---------------------------------
-# Download Logic
+# BUTTON ACTION
 # ---------------------------------
 
 if st.button("Fetch & Download CSV"):
 
     try:
 
-        csv_text = fetch_nse_data()
-
-        df = pd.read_csv(StringIO(csv_text))
+        df = fetch_nse_csv()
 
         # ---------------------------------
-        # Detect Important Columns
+        # FILTERS
         # ---------------------------------
-
-        possible_symbol_cols = [
-            "SYMBOL",
-            "Symbol"
-        ]
-
-        possible_date_cols = [
-            "DATE",
-            "Date",
-            "TIMESTAMP"
-        ]
-
-        possible_strike_cols = [
-            "STRIKE_PR",
-            "STRIKE PRICE",
-            "STRIKE_PRICE",
-            "STRIKE"
-        ]
-
-        possible_option_cols = [
-            "OPTION_TYP",
-            "OPTION TYPE",
-            "OPTION_TYPE"
-        ]
-
-        symbol_col = None
-        date_col = None
-        strike_col = None
-        option_col = None
-
-        for col in possible_symbol_cols:
-            if col in df.columns:
-                symbol_col = col
-                break
-
-        for col in possible_date_cols:
-            if col in df.columns:
-                date_col = col
-                break
-
-        for col in possible_strike_cols:
-            if col in df.columns:
-                strike_col = col
-                break
-
-        for col in possible_option_cols:
-            if col in df.columns:
-                option_col = col
-                break
-
-        # ---------------------------------
-        # Apply Filters
-        # ---------------------------------
-
-        # Symbol Filter
-        if symbol_col:
-            df = df[
-                df[symbol_col]
-                .astype(str)
-                .str.upper()
-                == symbol
-            ]
-
-        # Date Filter
-        if date_col:
-            df[date_col] = pd.to_datetime(
-                df[date_col],
-                errors="coerce"
-            )
-
-            df = df[
-                (df[date_col] >= pd.to_datetime(from_date))
-                &
-                (df[date_col] <= pd.to_datetime(to_date))
-            ]
 
         # Strike Filter
-        if strike_col:
+        if "strikePrice" in df.columns:
             df = df[
-                df[strike_col] == strike_price
+                df["strikePrice"] == strike_price
             ]
 
         # Option Type Filter
-        if option_col:
+        if "optionType" in df.columns:
             df = df[
-                df[option_col]
+                df["optionType"]
                 .astype(str)
-                .str.upper()
-                == option_type
+                .str.upper() == option_type
             ]
 
         # ---------------------------------
-        # File Name
+        # FILE NAME
         # ---------------------------------
 
         from_str = pd.to_datetime(
@@ -221,24 +155,22 @@ if st.button("Fetch & Download CSV"):
         )
 
         # ---------------------------------
-        # Download CSV
+        # DOWNLOAD
         # ---------------------------------
 
-        csv_download = df.to_csv(
+        csv_data = df.to_csv(
             index=False
         ).encode("utf-8")
 
         st.success(
-            f"Filtered rows found: {len(df)}"
+            f"Rows Found: {len(df)}"
         )
-
-        st.write("Preview:")
 
         st.dataframe(df.head())
 
         st.download_button(
-            label="Download Filtered CSV",
-            data=csv_download,
+            label="Download CSV",
+            data=csv_data,
             file_name=filename,
             mime="text/csv"
         )
