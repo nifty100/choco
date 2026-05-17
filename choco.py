@@ -1,21 +1,24 @@
 import streamlit as st
 import pandas as pd
-import yfinance as yf
-from datetime import datetime
+import requests
+import zipfile
+import io
+from datetime import datetime, timedelta
 
 # ---------------------------------------------------
 # PAGE CONFIG
 # ---------------------------------------------------
 
 st.set_page_config(
-    page_title="Yahoo Finance Option Downloader",
+    page_title="NSE Bhavcopy Option Downloader",
     layout="wide"
 )
 
-st.title("Yahoo Finance Option Data Downloader")
+st.title("NSE Bhavcopy Option Data Downloader")
 
 st.write(
-    "Download historical option data using Yahoo Finance"
+    "Download historical NSE option data "
+    "using NSE FO Bhavcopy archives."
 )
 
 # ---------------------------------------------------
@@ -23,14 +26,9 @@ st.write(
 # ---------------------------------------------------
 
 symbol = st.text_input(
-    "Enter Yahoo Finance Symbol",
-    value="^NSEI"
+    "Symbol",
+    value="NIFTY"
 ).upper()
-
-expiry = st.text_input(
-    "Expiry Date (YYYY-MM-DD)",
-    value="2022-12-29"
-)
 
 strike_price = st.number_input(
     "Strike Price",
@@ -55,65 +53,106 @@ to_date = st.date_input(
 )
 
 # ---------------------------------------------------
-# FETCH OPTION DATA
+# NSE BHAVCOPY FETCH FUNCTION
 # ---------------------------------------------------
 
-def fetch_option_data():
+def fetch_bhavcopy_data():
 
-    ticker = yf.Ticker(symbol)
+    final_df = pd.DataFrame()
 
-    # ---------------------------------------------
-    # GET OPTION CHAIN
-    # ---------------------------------------------
+    current_date = from_date
 
-    option_chain = ticker.option_chain(expiry)
+    while current_date <= to_date:
 
-    if option_type == "CE":
-        df = option_chain.calls
-    else:
-        df = option_chain.puts
+        # Skip weekends
+        if current_date.weekday() >= 5:
+            current_date += timedelta(days=1)
+            continue
 
-    # ---------------------------------------------
-    # FILTER STRIKE PRICE
-    # ---------------------------------------------
+        day = current_date.strftime("%d")
+        month = current_date.strftime("%b").upper()
+        year = current_date.strftime("%Y")
 
-    df = df[
-        df["strike"] == strike_price
-    ]
+        # Example:
+        # https://archives.nseindia.com/content/historical/DERIVATIVES/2022/DEC/fo01DEC2022bhav.csv.zip
 
-    if df.empty:
-        raise Exception(
-            "No option data found for selected strike."
+        file_name = (
+            f"fo{day}{month}{year}bhav.csv.zip"
         )
 
-    # ---------------------------------------------
-    # DATE FILTER
-    # ---------------------------------------------
-
-    if "lastTradeDate" in df.columns:
-
-        df["lastTradeDate"] = pd.to_datetime(
-            df["lastTradeDate"]
+        url = (
+            "https://archives.nseindia.com/content/"
+            f"historical/DERIVATIVES/"
+            f"{year}/{month}/{file_name}"
         )
 
-        df = df[
-            (
-                df["lastTradeDate"]
-                >= pd.to_datetime(from_date)
+        try:
+
+            response = requests.get(
+                url,
+                timeout=20
             )
-            &
-            (
-                df["lastTradeDate"]
-                <= pd.to_datetime(to_date)
+
+            if response.status_code != 200:
+                current_date += timedelta(days=1)
+                continue
+
+            zip_data = zipfile.ZipFile(
+                io.BytesIO(response.content)
             )
-        ]
 
-    if df.empty:
-        raise Exception(
-            "No data found within selected dates."
-        )
+            csv_name = zip_data.namelist()[0]
 
-    return df
+            df = pd.read_csv(
+                zip_data.open(csv_name)
+            )
+
+            # -----------------------------------------
+            # FILTERS
+            # -----------------------------------------
+
+            if "SYMBOL" in df.columns:
+
+                df = df[
+                    df["SYMBOL"]
+                    .astype(str)
+                    .str.upper() == symbol
+                ]
+
+            if "STRIKE_PR" in df.columns:
+
+                df = df[
+                    df["STRIKE_PR"]
+                    == strike_price
+                ]
+
+            if "OPTION_TYP" in df.columns:
+
+                df = df[
+                    df["OPTION_TYP"]
+                    .astype(str)
+                    .str.upper() == option_type
+                ]
+
+            # Only Options
+            if "INSTRUMENT" in df.columns:
+
+                df = df[
+                    df["INSTRUMENT"]
+                    .isin(["OPTIDX", "OPTSTK"])
+                ]
+
+            final_df = pd.concat(
+                [final_df, df],
+                ignore_index=True
+            )
+
+        except:
+            pass
+
+        current_date += timedelta(days=1)
+
+    return final_df
 
 # ---------------------------------------------------
 # FETCH BUTTON
@@ -124,44 +163,52 @@ if st.button("Fetch Option Data"):
     try:
 
         with st.spinner(
-            "Fetching option data..."
+            "Downloading NSE Bhavcopy files..."
         ):
 
-            df = fetch_option_data()
+            final_df = fetch_bhavcopy_data()
 
-        st.success(
-            f"{len(df)} rows fetched successfully."
-        )
+        if final_df.empty:
 
-        st.dataframe(df)
+            st.warning(
+                "No matching option data found."
+            )
 
-        # -----------------------------------------
-        # FILE NAME
-        # -----------------------------------------
+        else:
 
-        filename = (
-            f"{symbol}_"
-            f"{strike_price}_"
-            f"{option_type}_"
-            f"{from_date.strftime('%d-%b-%Y')}"
-            f"_TO_"
-            f"{to_date.strftime('%d-%b-%Y')}.csv"
-        )
+            st.success(
+                f"{len(final_df)} rows fetched."
+            )
 
-        # -----------------------------------------
-        # DOWNLOAD CSV
-        # -----------------------------------------
+            st.dataframe(final_df)
 
-        csv = df.to_csv(
-            index=False
-        ).encode("utf-8")
+            # -----------------------------------------
+            # FILE NAME
+            # -----------------------------------------
 
-        st.download_button(
-            label="Download CSV",
-            data=csv,
-            file_name=filename,
-            mime="text/csv"
-        )
+            filename = (
+                f"{symbol}_"
+                f"{strike_price}_"
+                f"{option_type}_"
+                f"{from_date.strftime('%d-%b-%Y')}"
+                f"_TO_"
+                f"{to_date.strftime('%d-%b-%Y')}.csv"
+            )
+
+            # -----------------------------------------
+            # CSV DOWNLOAD
+            # -----------------------------------------
+
+            csv = final_df.to_csv(
+                index=False
+            ).encode("utf-8")
+
+            st.download_button(
+                label="Download CSV",
+                data=csv,
+                file_name=filename,
+                mime="text/csv"
+            )
 
     except Exception as e:
 
